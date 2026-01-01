@@ -13,183 +13,226 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # ===============================
-# KONFIGURASI HALAMAN
+# PAGE CONFIG
 # ===============================
 st.set_page_config(
     page_title="Financial Freedom Consultant",
     layout="wide"
 )
 
-st.title("💼 Personal Financial Freedom Consultant Dashboard")
-st.caption("Simulasi perencanaan keuangan jangka panjang berbasis profil investor")
+# ===============================
+# DARK MODE CSS
+# ===============================
+st.markdown("""
+<style>
+body {
+    background-color: #0e1117;
+    color: #fafafa;
+}
+[data-testid="stSidebar"] {
+    background-color: #111827;
+}
+.metric-container {
+    background-color: #1f2933;
+    padding: 20px;
+    border-radius: 12px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+plt.style.use("dark_background")
 
 # ===============================
-# SIDEBAR INPUT USER
+# HEADER
 # ===============================
-st.sidebar.header("📌 Profil Pengguna")
+st.markdown("## 💼 Financial Freedom Consultant Dashboard")
+st.caption("Personal financial planning and passive income simulation")
+
+st.divider()
+
+# ===============================
+# SIDEBAR INPUT
+# ===============================
+st.sidebar.header("📌 Input Profil")
 
 usia_sekarang = st.sidebar.number_input(
     "Usia saat ini",
     min_value=18,
     max_value=80,
-    value=25
+    value=None,
+    placeholder="Masukkan usia saat ini"
 )
 
 usia_target = st.sidebar.number_input(
     "Target usia financial freedom",
-    min_value=usia_sekarang + 1,
+    min_value=18,
     max_value=100,
-    value=50
+    value=None,
+    placeholder="Masukkan usia target"
 )
 
 target_aset = st.sidebar.number_input(
-    "Target aset saat financial freedom (Rp)",
-    min_value=100_000_000,
-    value=3_000_000_000,
-    step=100_000_000
+    "Target aset (Rp)",
+    min_value=0,
+    value=None,
+    step=100_000_000,
+    placeholder="Contoh: 3000000000"
 )
 
 profil_investor = st.sidebar.selectbox(
     "Profil investor",
-    ["Konservatif", "Moderat", "Agresif"]
+    ["", "Konservatif", "Moderat", "Agresif"]
 )
 
 expert_mode = st.sidebar.checkbox("Aktifkan Expert Mode")
 
 # ===============================
-# ASUMSI RETURN BERDASARKAN PROFIL
+# VALIDASI INPUT
 # ===============================
-if profil_investor == "Konservatif":
-    expected_return = 0.07
-elif profil_investor == "Moderat":
-    expected_return = 0.11
-else:
-    expected_return = 0.16
+if not all([usia_sekarang, usia_target, target_aset, profil_investor]):
+    st.info("Silakan lengkapi seluruh input di sidebar untuk melihat dashboard.")
+    st.stop()
 
+if usia_target <= usia_sekarang:
+    st.error("Target usia harus lebih besar dari usia saat ini.")
+    st.stop()
+
+# ===============================
+# ASUMSI RETURN
+# ===============================
+return_map = {
+    "Konservatif": 0.07,
+    "Moderat": 0.11,
+    "Agresif": 0.16
+}
+
+expected_return = return_map[profil_investor]
 horizon = usia_target - usia_sekarang
+months = horizon * 12
+monthly_rate = expected_return / 12
 
 # ===============================
 # HITUNG INVESTASI BULANAN
 # ===============================
-monthly_rate = expected_return / 12
-months = horizon * 12
-
 monthly_investment = target_aset * monthly_rate / ((1 + monthly_rate) ** months - 1)
 
 # ===============================
-# SIMULASI PERTUMBUHAN ASET
+# SIMULASI ASET
 # ===============================
 balance = 0
 balances = []
-years = []
+invested = []
+ages = []
+
+total_invested = 0
 
 for year in range(1, horizon + 1):
     for _ in range(12):
         balance = balance * (1 + monthly_rate) + monthly_investment
+        total_invested += monthly_investment
     balances.append(balance)
-    years.append(usia_sekarang + year)
+    invested.append(total_invested)
+    ages.append(usia_sekarang + year)
 
-df_growth = pd.DataFrame({
-    "Usia": years,
-    "Aset": balances
+df = pd.DataFrame({
+    "Usia": ages,
+    "Aset": balances,
+    "Dana Disetor": invested
 })
 
 # ===============================
-# KPI DASHBOARD
+# KPI METRICS
 # ===============================
-col1, col2, col3, col4 = st.columns(4)
+k1, k2, k3, k4 = st.columns(4)
 
-col1.metric("Target Usia FF", f"{usia_target} tahun")
-col2.metric("Profil Investor", profil_investor)
-col3.metric("Return Tahunan", f"{expected_return*100:.1f}%")
-col4.metric("Investasi Bulanan", f"Rp {monthly_investment:,.0f}")
+k1.metric("Target Usia", f"{usia_target} tahun")
+k2.metric("Profil Investor", profil_investor)
+k3.metric("Return Tahunan", f"{expected_return*100:.1f}%")
+k4.metric("Investasi Bulanan", f"Rp {monthly_investment:,.0f}")
+
+st.divider()
 
 # ===============================
-# GRAFIK PERTUMBUHAN ASET
+# GRAFIK (3 DALAM 1 BARIS)
 # ===============================
-st.subheader("📈 Proyeksi Pertumbuhan Aset")
+g1, g2, g3 = st.columns(3)
 
-fig, ax = plt.subplots()
-ax.plot(df_growth["Usia"], df_growth["Aset"])
-ax.axhline(target_aset, linestyle="--")
-ax.set_xlabel("Usia")
-ax.set_ylabel("Nilai Aset (Rp)")
-st.pyplot(fig)
+# --- Grafik 1: Growth Aset
+fig1, ax1 = plt.subplots()
+ax1.plot(df["Usia"], df["Aset"])
+ax1.axhline(target_aset, linestyle="--")
+ax1.set_title("Pertumbuhan Aset")
+ax1.set_xlabel("Usia")
+ax1.set_ylabel("Rp")
+g1.pyplot(fig1)
+
+# --- Grafik 2: Dana vs Compounding
+fig2, ax2 = plt.subplots()
+ax2.plot(df["Usia"], df["Dana Disetor"], label="Dana Disetor")
+ax2.plot(df["Usia"], df["Aset"], label="Total Aset")
+ax2.set_title("Dana Disetor vs Hasil Investasi")
+ax2.legend()
+g2.pyplot(fig2)
+
+# --- Grafik 3: Scenario Analysis
+fig3, ax3 = plt.subplots()
+for label, r in {
+    "Pesimis": expected_return - 0.03,
+    "Base": expected_return,
+    "Optimis": expected_return + 0.03
+}.items():
+    rate = r / 12
+    bal = 0
+    result = []
+    for _ in range(months):
+        bal = bal * (1 + rate) + monthly_investment
+    ax3.bar(label, bal)
+
+ax3.set_title("Scenario Analysis")
+g3.pyplot(fig3)
+
+st.divider()
 
 # ===============================
 # INSIGHT KONSULTAN
 # ===============================
-st.subheader("🧠 Insight Konsultan")
+st.subheader("🧠 Advisor Insight")
 
-if monthly_investment > 0.5 * target_aset / months:
-    st.warning(
-        "Target ini tergolong agresif. Pertimbangkan memperpanjang usia target "
-        "atau meningkatkan profil risiko."
-    )
-else:
-    st.success(
-        "Target financial freedom ini tergolong realistis dengan asumsi yang digunakan."
-    )
+st.write(
+    f"Dengan horizon investasi {horizon} tahun dan profil {profil_investor}, "
+    f"Anda memerlukan investasi bulanan sekitar Rp {monthly_investment:,.0f} "
+    "untuk mencapai target aset yang diinginkan."
+)
 
 # ===============================
-# EXPERT MODE
+# PENDAPATAN PASIF
 # ===============================
-if expert_mode:
-    st.subheader("🔍 Expert Analysis")
-
-    st.markdown("**Scenario Analysis**")
-
-    scenarios = {
-        "Pesimis": expected_return - 0.03,
-        "Base Case": expected_return,
-        "Optimis": expected_return + 0.03
-    }
-
-    scenario_results = []
-
-    for name, r in scenarios.items():
-        rate = r / 12
-        bal = 0
-        for _ in range(months):
-            bal = bal * (1 + rate) + monthly_investment
-        scenario_results.append([name, bal])
-
-    df_scenario = pd.DataFrame(
-        scenario_results,
-        columns=["Skenario", "Aset Akhir"]
-    )
-
-    st.dataframe(df_scenario)
-
-# ===============================
-# FASE PENDAPATAN PASIF
-# ===============================
-st.subheader("💸 Simulasi Pendapatan Pasif Setelah Financial Freedom")
+st.subheader("💸 Simulasi Pendapatan Pasif")
 
 yield_obligasi = st.slider(
-    "Asumsi yield obligasi tahunan (%)",
+    "Yield obligasi tahunan (%)",
     min_value=3.0,
-    max_value=8.0,
+    max_value=12.0,
     value=6.0
 ) / 100
 
-pendapatan_tahunan = target_aset * yield_obligasi
-pendapatan_bulanan = pendapatan_tahunan / 12
+annual_income = target_aset * yield_obligasi
+monthly_income = annual_income / 12
 
-colA, colB, colC = st.columns(3)
+p1, p2, p3 = st.columns(3)
 
-colA.metric("Total Aset", f"Rp {target_aset:,.0f}")
-colB.metric("Pendapatan Tahunan", f"Rp {pendapatan_tahunan:,.0f}")
-colC.metric("Pendapatan Bulanan", f"Rp {pendapatan_bulanan:,.0f}")
+p1.metric("Total Aset", f"Rp {target_aset:,.0f}")
+p2.metric("Pendapatan Tahunan", f"Rp {annual_income:,.0f}")
+p3.metric("Pendapatan Bulanan", f"Rp {monthly_income:,.0f}")
 
 st.info(
-    "Dengan menginvestasikan seluruh aset pada obligasi dan menggunakan "
-    "kupon sebagai pendapatan, nilai pokok aset tetap terjaga."
+    "Simulasi ini mengasumsikan seluruh aset dialokasikan ke obligasi "
+    "dan kupon digunakan sebagai pendapatan tanpa mengurangi pokok."
 )
 
 # ===============================
 # DISCLAIMER
 # ===============================
 st.caption(
-    "Disclaimer: Aplikasi ini bersifat edukatif dan bukan merupakan nasihat investasi pribadi."
+    "Disclaimer: Aplikasi ini bersifat edukatif dan bukan nasihat investasi."
 )
