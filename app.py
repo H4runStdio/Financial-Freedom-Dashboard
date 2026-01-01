@@ -21,21 +21,49 @@ st.set_page_config(
 )
 
 # ===============================
-# DARK MODE CSS
+# GLOBAL STYLE (DARK PROFESSIONAL DASHBOARD)
 # ===============================
 st.markdown("""
 <style>
-body {
-    background-color: #0e1117;
-    color: #fafafa;
+html, body, [class*="css"] {
+    font-family: 'Segoe UI', sans-serif;
+    background-color: #0b0f19;
+    color: #e5e7eb;
 }
+
 [data-testid="stSidebar"] {
     background-color: #111827;
 }
-.metric-container {
-    background-color: #1f2933;
-    padding: 20px;
-    border-radius: 12px;
+
+.dashboard-card {
+    background-color: #111827;
+    border: 1px solid #1f2937;
+    border-radius: 14px;
+    padding: 18px;
+    text-align: center;
+}
+
+.card-title {
+    font-size: 13px;
+    color: #9ca3af;
+}
+
+.card-value {
+    font-size: 22px;
+    font-weight: 600;
+    color: #f9fafb;
+}
+
+.section-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+hr {
+    border: none;
+    border-top: 1px solid #1f2937;
+    margin: 25px 0;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -45,22 +73,22 @@ plt.style.use("dark_background")
 # ===============================
 # HEADER
 # ===============================
-st.markdown("## 💼 Financial Freedom Consultant Dashboard")
-st.caption("Personal financial planning and passive income simulation")
+st.markdown("## 💼 Financial Freedom Consultant")
+st.caption("Professional financial planning dashboard for long term wealth and passive income")
 
-st.divider()
+st.markdown("<hr>", unsafe_allow_html=True)
 
 # ===============================
 # SIDEBAR INPUT
 # ===============================
-st.sidebar.header("📌 Input Profil")
+st.sidebar.markdown("## 📌 User Profile")
 
 usia_sekarang = st.sidebar.number_input(
     "Usia saat ini",
     min_value=18,
     max_value=80,
     value=None,
-    placeholder="Masukkan usia saat ini"
+    placeholder="Contoh: 25"
 )
 
 usia_target = st.sidebar.number_input(
@@ -68,11 +96,11 @@ usia_target = st.sidebar.number_input(
     min_value=18,
     max_value=100,
     value=None,
-    placeholder="Masukkan usia target"
+    placeholder="Contoh: 50"
 )
 
 target_aset = st.sidebar.number_input(
-    "Target aset (Rp)",
+    "Target aset saat financial freedom (Rp)",
     min_value=0,
     value=None,
     step=100_000_000,
@@ -87,10 +115,10 @@ profil_investor = st.sidebar.selectbox(
 expert_mode = st.sidebar.checkbox("Aktifkan Expert Mode")
 
 # ===============================
-# VALIDASI INPUT
+# VALIDATION
 # ===============================
 if not all([usia_sekarang, usia_target, target_aset, profil_investor]):
-    st.info("Silakan lengkapi seluruh input di sidebar untuk melihat dashboard.")
+    st.info("Lengkapi seluruh input di sidebar untuk menampilkan dashboard.")
     st.stop()
 
 if usia_target <= usia_sekarang:
@@ -98,7 +126,7 @@ if usia_target <= usia_sekarang:
     st.stop()
 
 # ===============================
-# ASUMSI RETURN
+# ASSUMPTIONS
 # ===============================
 return_map = {
     "Konservatif": 0.07,
@@ -112,18 +140,14 @@ months = horizon * 12
 monthly_rate = expected_return / 12
 
 # ===============================
-# HITUNG INVESTASI BULANAN
+# CORE CALCULATION
 # ===============================
 monthly_investment = target_aset * monthly_rate / ((1 + monthly_rate) ** months - 1)
 
-# ===============================
-# SIMULASI ASET
-# ===============================
 balance = 0
 balances = []
 invested = []
 ages = []
-
 total_invested = 0
 
 for year in range(1, horizon + 1):
@@ -136,78 +160,128 @@ for year in range(1, horizon + 1):
 
 df = pd.DataFrame({
     "Usia": ages,
-    "Aset": balances,
+    "Total Aset": balances,
     "Dana Disetor": invested
 })
 
 # ===============================
-# KPI METRICS
+# KPI DASHBOARD CARDS
 # ===============================
-k1, k2, k3, k4 = st.columns(4)
+st.markdown("### 📊 Ringkasan Finansial")
 
-k1.metric("Target Usia", f"{usia_target} tahun")
-k2.metric("Profil Investor", profil_investor)
-k3.metric("Return Tahunan", f"{expected_return*100:.1f}%")
-k4.metric("Investasi Bulanan", f"Rp {monthly_investment:,.0f}")
+c1, c2, c3, c4 = st.columns(4)
 
-st.divider()
+with c1:
+    st.markdown(f"""
+    <div class="dashboard-card">
+        <div class="card-title">Target Usia</div>
+        <div class="card-value">{usia_target} tahun</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with c2:
+    st.markdown(f"""
+    <div class="dashboard-card">
+        <div class="card-title">Profil Investor</div>
+        <div class="card-value">{profil_investor}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with c3:
+    st.markdown(f"""
+    <div class="dashboard-card">
+        <div class="card-title">Return Tahunan</div>
+        <div class="card-value">{expected_return*100:.1f}%</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with c4:
+    st.markdown(f"""
+    <div class="dashboard-card">
+        <div class="card-title">Investasi Bulanan</div>
+        <div class="card-value">Rp {monthly_investment:,.0f}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.markdown("<hr>", unsafe_allow_html=True)
 
 # ===============================
-# GRAFIK (3 DALAM 1 BARIS)
+# VISUALIZATION SECTION
 # ===============================
-g1, g2, g3 = st.columns(3)
+st.markdown("### 📈 Proyeksi & Analisis")
 
-# --- Grafik 1: Growth Aset
-fig1, ax1 = plt.subplots()
-ax1.plot(df["Usia"], df["Aset"])
-ax1.axhline(target_aset, linestyle="--")
+g1, g2 = st.columns(2)
+
+# --- GRAPH 1: Asset Growth
+fig1, ax1 = plt.subplots(figsize=(6,4))
+ax1.plot(df["Usia"], df["Total Aset"], linewidth=2)
+ax1.axhline(target_aset, linestyle="--", linewidth=1)
 ax1.set_title("Pertumbuhan Aset")
 ax1.set_xlabel("Usia")
-ax1.set_ylabel("Rp")
+ax1.set_ylabel("Nilai Aset (Rp)")
+ax1.ticklabel_format(style="plain", axis="y")
+
+final_asset = df["Total Aset"].iloc[-1]
+ax1.text(
+    df["Usia"].iloc[-1],
+    final_asset,
+    f" Rp {final_asset:,.0f}",
+    ha="right",
+    va="bottom"
+)
+
 g1.pyplot(fig1)
 
-# --- Grafik 2: Dana vs Compounding
-fig2, ax2 = plt.subplots()
-ax2.plot(df["Usia"], df["Dana Disetor"], label="Dana Disetor")
-ax2.plot(df["Usia"], df["Aset"], label="Total Aset")
+# --- GRAPH 2: Invested vs Growth
+fig2, ax2 = plt.subplots(figsize=(6,4))
+ax2.plot(df["Usia"], df["Dana Disetor"], label="Dana Disetor", linewidth=2)
+ax2.plot(df["Usia"], df["Total Aset"], label="Total Aset", linewidth=2)
 ax2.set_title("Dana Disetor vs Hasil Investasi")
 ax2.legend()
+ax2.ticklabel_format(style="plain", axis="y")
+
+ax2.text(
+    df["Usia"].iloc[-1],
+    df["Dana Disetor"].iloc[-1],
+    f" Rp {df['Dana Disetor'].iloc[-1]:,.0f}",
+    ha="right",
+    va="bottom"
+)
+
 g2.pyplot(fig2)
 
-# --- Grafik 3: Scenario Analysis
-fig3, ax3 = plt.subplots()
+st.markdown("<hr>", unsafe_allow_html=True)
+
+# ===============================
+# SCENARIO ANALYSIS TABLE
+# ===============================
+st.markdown("### 📋 Scenario Analysis")
+
+scenario_data = []
+
 for label, r in {
     "Pesimis": expected_return - 0.03,
-    "Base": expected_return,
+    "Base Case": expected_return,
     "Optimis": expected_return + 0.03
 }.items():
     rate = r / 12
     bal = 0
-    result = []
     for _ in range(months):
         bal = bal * (1 + rate) + monthly_investment
-    ax3.bar(label, bal)
+    scenario_data.append([label, f"{r*100:.1f}%", f"Rp {bal:,.0f}"])
 
-ax3.set_title("Scenario Analysis")
-g3.pyplot(fig3)
-
-st.divider()
-
-# ===============================
-# INSIGHT KONSULTAN
-# ===============================
-st.subheader("🧠 Advisor Insight")
-
-st.write(
-    f"Dengan horizon investasi {horizon} tahun dan profil {profil_investor}, "
-    f"Anda memerlukan investasi bulanan sekitar Rp {monthly_investment:,.0f} "
-    "untuk mencapai target aset yang diinginkan."
+df_scenario = pd.DataFrame(
+    scenario_data,
+    columns=["Skenario", "Return Tahunan", "Estimasi Aset Akhir"]
 )
 
+st.dataframe(df_scenario, use_container_width=True)
+
 # ===============================
-# PENDAPATAN PASIF
+# PASSIVE INCOME SIMULATOR
 # ===============================
-st.subheader("💸 Simulasi Pendapatan Pasif")
+st.markdown("<hr>", unsafe_allow_html=True)
+st.markdown("### 💸 Simulasi Pendapatan Pasif")
 
 yield_obligasi = st.slider(
     "Yield obligasi tahunan (%)",
@@ -221,18 +295,38 @@ monthly_income = annual_income / 12
 
 p1, p2, p3 = st.columns(3)
 
-p1.metric("Total Aset", f"Rp {target_aset:,.0f}")
-p2.metric("Pendapatan Tahunan", f"Rp {annual_income:,.0f}")
-p3.metric("Pendapatan Bulanan", f"Rp {monthly_income:,.0f}")
+with p1:
+    st.markdown(f"""
+    <div class="dashboard-card">
+        <div class="card-title">Total Aset</div>
+        <div class="card-value">Rp {target_aset:,.0f}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with p2:
+    st.markdown(f"""
+    <div class="dashboard-card">
+        <div class="card-title">Pendapatan Tahunan</div>
+        <div class="card-value">Rp {annual_income:,.0f}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with p3:
+    st.markdown(f"""
+    <div class="dashboard-card">
+        <div class="card-title">Pendapatan Bulanan</div>
+        <div class="card-value">Rp {monthly_income:,.0f}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
 st.info(
-    "Simulasi ini mengasumsikan seluruh aset dialokasikan ke obligasi "
-    "dan kupon digunakan sebagai pendapatan tanpa mengurangi pokok."
+    "Simulasi ini mengasumsikan seluruh aset dialokasikan ke obligasi dan "
+    "kupon digunakan sebagai pendapatan tanpa mengurangi pokok investasi."
 )
 
 # ===============================
 # DISCLAIMER
 # ===============================
 st.caption(
-    "Disclaimer: Aplikasi ini bersifat edukatif dan bukan nasihat investasi."
+    "Disclaimer: Aplikasi ini bersifat edukatif dan bukan merupakan nasihat investasi."
 )
