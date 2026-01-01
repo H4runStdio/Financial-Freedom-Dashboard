@@ -139,194 +139,230 @@ horizon = usia_target - usia_sekarang
 months = horizon * 12
 monthly_rate = expected_return / 12
 
+import streamlit as st
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from reportlab.platypus import SimpleDocTemplate, Paragraph
+from reportlab.lib.styles import getSampleStyleSheet
+import io
+
+# ===============================
+# PAGE CONFIG
+# ===============================
+st.set_page_config(page_title="Financial Freedom Consultant", layout="wide")
+
+# ===============================
+# MODE TOGGLE
+# ===============================
+dark_mode = st.toggle("🌙 Dark Mode", value=True)
+
+if dark_mode:
+    bg, card, border, text = "#0b0f19", "#111827", "#1f2937", "#e5e7eb"
+    plt.style.use("dark_background")
+else:
+    bg, card, border, text = "#f9fafb", "#ffffff", "#e5e7eb", "#111827"
+    plt.style.use("default")
+
+# ===============================
+# GLOBAL CSS
+# ===============================
+st.markdown(f"""
+<style>
+html, body {{ background-color:{bg}; color:{text}; }}
+[data-testid="stSidebar"] {{ background-color:{card}; }}
+.dashboard-card {{
+    background:{card}; border:1px solid {border};
+    border-radius:14px; padding:18px; text-align:center;
+}}
+.card-title {{ font-size:13px; color:#9ca3af; }}
+.card-value {{ font-size:22px; font-weight:600; }}
+</style>
+""", unsafe_allow_html=True)
+
+# ===============================
+# HEADER
+# ===============================
+st.markdown("## 💼 Financial Freedom Consultant Dashboard")
+st.caption("Advanced interactive financial planning dashboard")
+
+# ===============================
+# SIDEBAR INPUT
+# ===============================
+st.sidebar.header("📌 Profil Pengguna")
+
+usia_sekarang = st.sidebar.number_input("Usia saat ini", 18, 80, value=None)
+usia_target = st.sidebar.number_input("Target usia financial freedom", 18, 100, value=None)
+target_aset = st.sidebar.number_input("Target aset (Rp)", value=None, step=100_000_000)
+profil = st.sidebar.selectbox("Profil investor", ["", "Konservatif", "Moderat", "Agresif"])
+
+if not all([usia_sekarang, usia_target, target_aset, profil]):
+    st.info("Lengkapi seluruh input di sidebar.")
+    st.stop()
+
+# ===============================
+# RETURN SLIDER
+# ===============================
+return_ranges = {
+    "Konservatif": (0.05, 0.09),
+    "Moderat": (0.08, 0.14),
+    "Agresif": (0.13, 0.19)
+}
+r_min, r_max = return_ranges[profil]
+
+expected_return = st.slider(
+    "🎛 Asumsi return tahunan",
+    r_min, r_max, (r_min + r_max) / 2, 0.001, format="%.2f"
+)
+
 # ===============================
 # CORE CALCULATION
 # ===============================
-monthly_investment = target_aset * monthly_rate / ((1 + monthly_rate) ** months - 1)
+horizon = usia_target - usia_sekarang
+months = horizon * 12
+monthly_rate = expected_return / 12
 
-balance = 0
-balances = []
-invested = []
-ages = []
-total_invested = 0
+monthly_invest = target_aset * monthly_rate / ((1 + monthly_rate) ** months - 1)
+
+balance, balances, invested, ages = 0, [], [], []
+total_inv = 0
 
 for year in range(1, horizon + 1):
     for _ in range(12):
-        balance = balance * (1 + monthly_rate) + monthly_investment
-        total_invested += monthly_investment
+        balance = balance * (1 + monthly_rate) + monthly_invest
+        total_inv += monthly_invest
     balances.append(balance)
-    invested.append(total_invested)
+    invested.append(total_inv)
     ages.append(usia_sekarang + year)
 
-df = pd.DataFrame({
-    "Usia": ages,
-    "Total Aset": balances,
-    "Dana Disetor": invested
-})
+df = pd.DataFrame({"Usia": ages, "Aset": balances, "Dana Disetor": invested})
 
 # ===============================
-# KPI DASHBOARD CARDS
+# KPI CARDS
 # ===============================
-st.markdown("### 📊 Ringkasan Finansial")
-
 c1, c2, c3, c4 = st.columns(4)
 
-with c1:
-    st.markdown(f"""
+def card(col, title, value):
+    col.markdown(f"""
     <div class="dashboard-card">
-        <div class="card-title">Target Usia</div>
-        <div class="card-value">{usia_target} tahun</div>
+        <div class="card-title">{title}</div>
+        <div class="card-value">{value}</div>
     </div>
     """, unsafe_allow_html=True)
 
-with c2:
-    st.markdown(f"""
-    <div class="dashboard-card">
-        <div class="card-title">Profil Investor</div>
-        <div class="card-value">{profil_investor}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-with c3:
-    st.markdown(f"""
-    <div class="dashboard-card">
-        <div class="card-title">Return Tahunan</div>
-        <div class="card-value">{expected_return*100:.1f}%</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-with c4:
-    st.markdown(f"""
-    <div class="dashboard-card">
-        <div class="card-title">Investasi Bulanan</div>
-        <div class="card-value">Rp {monthly_investment:,.0f}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-st.markdown("<hr>", unsafe_allow_html=True)
+card(c1, "Target Usia", f"{usia_target} tahun")
+card(c2, "Profil Investor", profil)
+card(c3, "Return Tahunan", f"{expected_return*100:.2f}%")
+card(c4, "Investasi Bulanan", f"Rp {monthly_invest:,.0f}")
 
 # ===============================
-# VISUALIZATION SECTION
+# GRAFIK UTAMA
 # ===============================
-st.markdown("### 📈 Proyeksi & Analisis")
-
 g1, g2 = st.columns(2)
 
-# --- GRAPH 1: Asset Growth
-fig1, ax1 = plt.subplots(figsize=(6,4))
-ax1.plot(df["Usia"], df["Total Aset"], linewidth=2)
-ax1.axhline(target_aset, linestyle="--", linewidth=1)
+fig1, ax1 = plt.subplots()
+ax1.plot(df["Usia"], df["Aset"], linewidth=3)
+ax1.scatter(df["Usia"].iloc[-1], df["Aset"].iloc[-1], s=60)
 ax1.set_title("Pertumbuhan Aset")
-ax1.set_xlabel("Usia")
-ax1.set_ylabel("Nilai Aset (Rp)")
-ax1.ticklabel_format(style="plain", axis="y")
-
-final_asset = df["Total Aset"].iloc[-1]
-ax1.text(
-    df["Usia"].iloc[-1],
-    final_asset,
-    f" Rp {final_asset:,.0f}",
-    ha="right",
-    va="bottom"
-)
-
+ax1.text(df["Usia"].iloc[-1], df["Aset"].iloc[-1],
+         f" Rp {df['Aset'].iloc[-1]:,.0f}")
 g1.pyplot(fig1)
 
-# --- GRAPH 2: Invested vs Growth
-fig2, ax2 = plt.subplots(figsize=(6,4))
-ax2.plot(df["Usia"], df["Dana Disetor"], label="Dana Disetor", linewidth=2)
-ax2.plot(df["Usia"], df["Total Aset"], label="Total Aset", linewidth=2)
-ax2.set_title("Dana Disetor vs Hasil Investasi")
+fig2, ax2 = plt.subplots()
+ax2.plot(df["Usia"], df["Dana Disetor"], label="Dana Disetor")
+ax2.plot(df["Usia"], df["Aset"], label="Total Aset")
 ax2.legend()
-ax2.ticklabel_format(style="plain", axis="y")
-
-ax2.text(
-    df["Usia"].iloc[-1],
-    df["Dana Disetor"].iloc[-1],
-    f" Rp {df['Dana Disetor'].iloc[-1]:,.0f}",
-    ha="right",
-    va="bottom"
-)
-
+ax2.set_title("Dana Disetor vs Hasil Investasi")
 g2.pyplot(fig2)
 
-st.markdown("<hr>", unsafe_allow_html=True)
-
 # ===============================
-# SCENARIO ANALYSIS TABLE
+# SCENARIO TABLE
 # ===============================
-st.markdown("### 📋 Scenario Analysis")
-
-scenario_data = []
-
-for label, r in {
-    "Pesimis": expected_return - 0.03,
-    "Base Case": expected_return,
-    "Optimis": expected_return + 0.03
-}.items():
-    rate = r / 12
+scenario = []
+for name, r in {"Pesimis": expected_return-0.03,
+                "Base": expected_return,
+                "Optimis": expected_return+0.03}.items():
     bal = 0
     for _ in range(months):
-        bal = bal * (1 + rate) + monthly_investment
-    scenario_data.append([label, f"{r*100:.1f}%", f"Rp {bal:,.0f}"])
+        bal = bal * (1 + r/12) + monthly_invest
+    scenario.append([name, f"{r*100:.1f}%", f"Rp {bal:,.0f}"])
 
-df_scenario = pd.DataFrame(
-    scenario_data,
-    columns=["Skenario", "Return Tahunan", "Estimasi Aset Akhir"]
-)
-
-st.dataframe(df_scenario, use_container_width=True)
+st.subheader("📋 Scenario Analysis")
+st.dataframe(pd.DataFrame(
+    scenario, columns=["Skenario", "Return", "Aset Akhir"]),
+    use_container_width=True)
 
 # ===============================
-# PASSIVE INCOME SIMULATOR
+# MONTE CARLO
 # ===============================
-st.markdown("<hr>", unsafe_allow_html=True)
-st.markdown("### 💸 Simulasi Pendapatan Pasif")
+st.subheader("🎲 Monte Carlo Simulation")
 
-yield_obligasi = st.slider(
-    "Yield obligasi tahunan (%)",
-    min_value=3.0,
-    max_value=12.0,
-    value=6.0
-) / 100
+n_sim = 3000
+results = []
 
-annual_income = target_aset * yield_obligasi
-monthly_income = annual_income / 12
+for _ in range(n_sim):
+    bal = 0
+    for _ in range(months):
+        r = np.random.normal(expected_return, 0.04) / 12
+        bal = bal * (1 + r) + monthly_invest
+    results.append(bal)
 
-p1, p2, p3 = st.columns(3)
+results = np.array(results)
+prob = (results >= target_aset).mean()
 
-with p1:
-    st.markdown(f"""
-    <div class="dashboard-card">
-        <div class="card-title">Total Aset</div>
-        <div class="card-value">Rp {target_aset:,.0f}</div>
-    </div>
-    """, unsafe_allow_html=True)
+fig_mc, ax_mc = plt.subplots()
+ax_mc.hist(results, bins=40)
+ax_mc.axvline(target_aset)
+ax_mc.set_title("Distribusi Aset Akhir")
+st.pyplot(fig_mc)
 
-with p2:
-    st.markdown(f"""
-    <div class="dashboard-card">
-        <div class="card-title">Pendapatan Tahunan</div>
-        <div class="card-value">Rp {annual_income:,.0f}</div>
-    </div>
-    """, unsafe_allow_html=True)
+st.metric("Probability of Success", f"{prob*100:.1f}%")
 
-with p3:
-    st.markdown(f"""
-    <div class="dashboard-card">
-        <div class="card-title">Pendapatan Bulanan</div>
-        <div class="card-value">Rp {monthly_income:,.0f}</div>
-    </div>
-    """, unsafe_allow_html=True)
+# ===============================
+# PASSIVE INCOME + ALLOCATION
+# ===============================
+st.subheader("💸 Pendapatan Pasif & Alokasi Aset")
 
-st.info(
-    "Simulasi ini mengasumsikan seluruh aset dialokasikan ke obligasi dan "
-    "kupon digunakan sebagai pendapatan tanpa mengurangi pokok investasi."
-)
+yield_obl = st.slider("Yield obligasi (%)", 3.0, 12.0, 6.0) / 100
+monthly_income = target_aset * yield_obl / 12
+
+p1, p2 = st.columns(2)
+card(p1, "Pendapatan Bulanan", f"Rp {monthly_income:,.0f}")
+card(p2, "Total Aset", f"Rp {target_aset:,.0f}")
+
+fig_alloc, ax_alloc = plt.subplots()
+ax_alloc.pie([70, 20, 10],
+             labels=["Obligasi", "Dividen Saham", "Kas"],
+             autopct="%1.0f%%")
+ax_alloc.set_title("Ilustrasi Alokasi Aset Pasca-FF")
+st.pyplot(fig_alloc)
+
+# ===============================
+# EXPORT PDF
+# ===============================
+st.subheader("📄 Export Financial Report")
+
+if st.button("Download PDF Report"):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer)
+    styles = getSampleStyleSheet()
+    content = [
+        Paragraph("Financial Freedom Report", styles["Title"]),
+        Paragraph(f"Profil Investor: {profil}", styles["Normal"]),
+        Paragraph(f"Target Usia: {usia_target}", styles["Normal"]),
+        Paragraph(f"Target Aset: Rp {target_aset:,.0f}", styles["Normal"]),
+        Paragraph(f"Investasi Bulanan: Rp {monthly_invest:,.0f}", styles["Normal"]),
+        Paragraph(f"Probability of Success: {prob*100:.1f}%", styles["Normal"])
+    ]
+    doc.build(content)
+    st.download_button(
+        "Klik untuk download",
+        buffer.getvalue(),
+        "financial_report.pdf",
+        "application/pdf"
+    )
 
 # ===============================
 # DISCLAIMER
 # ===============================
-st.caption(
-    "Disclaimer: Aplikasi ini bersifat edukatif dan bukan merupakan nasihat investasi."
-)
+st.caption("Disclaimer: Aplikasi ini bersifat edukatif dan bukan nasihat investasi.")
