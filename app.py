@@ -195,51 +195,217 @@ usia_sekarang = st.sidebar.number_input("Usia saat ini", 18, 80, value=None)
 usia_target = st.sidebar.number_input("Target usia financial freedom", 18, 100, value=None)
 target_aset = st.sidebar.number_input("Target aset (Rp)", value=None, step=100_000_000)
 profil = st.sidebar.selectbox("Profil investor", ["", "Konservatif", "Moderat", "Agresif"])
+import streamlit as st
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import io
+
+from reportlab.platypus import SimpleDocTemplate, Paragraph
+from reportlab.lib.styles import getSampleStyleSheet
+
+# =====================================================
+# PAGE CONFIG
+# =====================================================
+st.set_page_config(
+    page_title="Financial Freedom Consultant",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# =====================================================
+# STATE INIT
+# =====================================================
+if "dark_mode" not in st.session_state:
+    st.session_state.dark_mode = True
+
+# =====================================================
+# MODE TOGGLE
+# =====================================================
+st.session_state.dark_mode = st.toggle(
+    "🌙 Dark Mode",
+    value=st.session_state.dark_mode,
+    key="dark_mode_toggle"
+)
+
+if st.session_state.dark_mode:
+    bg = "#0b0f19"
+    card = "#111827"
+    border = "#1f2937"
+    text = "#e5e7eb"
+    muted = "#9ca3af"
+    plt.style.use("dark_background")
+else:
+    bg = "#f9fafb"
+    card = "#ffffff"
+    border = "#e5e7eb"
+    text = "#111827"
+    muted = "#6b7280"
+    plt.style.use("default")
+
+# =====================================================
+# GLOBAL CSS (TYPOGRAPHY + LAYOUT)
+# =====================================================
+st.markdown(f"""
+<style>
+html, body, [class*="css"] {{
+    background-color: {bg};
+    color: {text};
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+                 Roboto, "Inter", Helvetica, Arial, sans-serif;
+    letter-spacing: -0.2px;
+}}
+
+h1, h2, h3 {{
+    font-weight: 600;
+    letter-spacing: -0.6px;
+}}
+
+.dashboard-card {{
+    background: {card};
+    border: 1px solid {border};
+    border-radius: 14px;
+    padding: 18px;
+    min-height: 90px;
+}}
+
+.card-title {{
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: {muted};
+    margin-bottom: 6px;
+}}
+
+.card-value {{
+    font-size: 1.5rem;
+    font-weight: 600;
+}}
+
+[data-testid="stMetricValue"] {{
+    font-size: 1.6rem;
+    font-weight: 600;
+}}
+
+[data-testid="stMetricLabel"] {{
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: {muted};
+}}
+
+thead tr th {{
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}}
+
+tbody tr td {{
+    font-size: 0.85rem;
+}}
+</style>
+""", unsafe_allow_html=True)
+
+# =====================================================
+# HEADER
+# =====================================================
+st.markdown("## 💼 Financial Freedom Consultant Dashboard")
+st.caption("Interactive personal financial planning dashboard")
+
+# =====================================================
+# SIDEBAR INPUT
+# =====================================================
+st.sidebar.header("📌 Profil Finansial")
+
+usia_sekarang = st.sidebar.number_input(
+    "Usia saat ini",
+    min_value=18,
+    max_value=80,
+    value=None,
+    key="usia_sekarang"
+)
+
+usia_target = st.sidebar.number_input(
+    "Target usia financial freedom",
+    min_value=18,
+    max_value=100,
+    value=None,
+    key="usia_target"
+)
+
+target_aset = st.sidebar.number_input(
+    "Target aset (Rp)",
+    value=None,
+    step=100_000_000,
+    key="target_aset"
+)
+
+profil = st.sidebar.selectbox(
+    "Profil investor",
+    ["", "Konservatif", "Moderat", "Agresif"],
+    key="profil_investor"
+)
 
 if not all([usia_sekarang, usia_target, target_aset, profil]):
-    st.info("Lengkapi seluruh input di sidebar.")
+    st.info("Lengkapi seluruh input di sidebar untuk memulai analisis.")
     st.stop()
 
-# ===============================
+# =====================================================
 # RETURN SLIDER
-# ===============================
-return_ranges = {
+# =====================================================
+return_range = {
     "Konservatif": (0.05, 0.09),
     "Moderat": (0.08, 0.14),
     "Agresif": (0.13, 0.19)
 }
-r_min, r_max = return_ranges[profil]
+
+r_min, r_max = return_range[profil]
 
 expected_return = st.slider(
     "🎛 Asumsi return tahunan",
-    r_min, r_max, (r_min + r_max) / 2, 0.001, format="%.2f"
+    min_value=r_min,
+    max_value=r_max,
+    value=(r_min + r_max) / 2,
+    step=0.001,
+    format="%.2f",
+    key="return_slider"
 )
 
-# ===============================
+# =====================================================
 # CORE CALCULATION
-# ===============================
-horizon = usia_target - usia_sekarang
-months = horizon * 12
+# =====================================================
+years = usia_target - usia_sekarang
+months = years * 12
 monthly_rate = expected_return / 12
 
-monthly_invest = target_aset * monthly_rate / ((1 + monthly_rate) ** months - 1)
+monthly_invest = (
+    target_aset * monthly_rate /
+    ((1 + monthly_rate) ** months - 1)
+)
 
-balance, balances, invested, ages = 0, [], [], []
-total_inv = 0
+balance = 0
+balances = []
+invested = []
+ages = []
+total_invested = 0
 
-for year in range(1, horizon + 1):
+for year in range(1, years + 1):
     for _ in range(12):
         balance = balance * (1 + monthly_rate) + monthly_invest
-        total_inv += monthly_invest
+        total_invested += monthly_invest
     balances.append(balance)
-    invested.append(total_inv)
+    invested.append(total_invested)
     ages.append(usia_sekarang + year)
 
-df = pd.DataFrame({"Usia": ages, "Aset": balances, "Dana Disetor": invested})
+df = pd.DataFrame({
+    "Usia": ages,
+    "Aset": balances,
+    "Dana Disetor": invested
+})
 
-# ===============================
+# =====================================================
 # KPI CARDS
-# ===============================
+# =====================================================
 c1, c2, c3, c4 = st.columns(4)
 
 def card(col, title, value):
@@ -250,19 +416,19 @@ def card(col, title, value):
     </div>
     """, unsafe_allow_html=True)
 
-card(c1, "Target Usia", f"{usia_target} tahun")
+card(c1, "Target Usia", f"{usia_target} Tahun")
 card(c2, "Profil Investor", profil)
 card(c3, "Return Tahunan", f"{expected_return*100:.2f}%")
 card(c4, "Investasi Bulanan", f"Rp {monthly_invest:,.0f}")
 
-# ===============================
-# GRAFIK UTAMA
-# ===============================
+# =====================================================
+# MAIN CHARTS
+# =====================================================
 g1, g2 = st.columns(2)
 
 fig1, ax1 = plt.subplots()
 ax1.plot(df["Usia"], df["Aset"], linewidth=3)
-ax1.scatter(df["Usia"].iloc[-1], df["Aset"].iloc[-1], s=60)
+ax1.scatter(df["Usia"].iloc[-1], df["Aset"].iloc[-1])
 ax1.set_title("Pertumbuhan Aset")
 ax1.text(df["Usia"].iloc[-1], df["Aset"].iloc[-1],
          f" Rp {df['Aset'].iloc[-1]:,.0f}")
@@ -272,39 +438,43 @@ fig2, ax2 = plt.subplots()
 ax2.plot(df["Usia"], df["Dana Disetor"], label="Dana Disetor")
 ax2.plot(df["Usia"], df["Aset"], label="Total Aset")
 ax2.legend()
-ax2.set_title("Dana Disetor vs Hasil Investasi")
+ax2.set_title("Dana Disetor vs Nilai Investasi")
 g2.pyplot(fig2)
 
-# ===============================
+# =====================================================
 # SCENARIO TABLE
-# ===============================
+# =====================================================
+st.subheader("📋 Scenario Analysis")
+
 scenario = []
-for name, r in {"Pesimis": expected_return-0.03,
-                "Base": expected_return,
-                "Optimis": expected_return+0.03}.items():
+for label, r in {
+    "Pesimis": expected_return - 0.03,
+    "Base": expected_return,
+    "Optimis": expected_return + 0.03
+}.items():
     bal = 0
     for _ in range(months):
         bal = bal * (1 + r/12) + monthly_invest
-    scenario.append([name, f"{r*100:.1f}%", f"Rp {bal:,.0f}"])
+    scenario.append([label, f"{r*100:.1f}%", f"Rp {bal:,.0f}"])
 
-st.subheader("📋 Scenario Analysis")
-st.dataframe(pd.DataFrame(
-    scenario, columns=["Skenario", "Return", "Aset Akhir"]),
-    use_container_width=True)
+st.dataframe(
+    pd.DataFrame(scenario, columns=["Skenario", "Return", "Aset Akhir"]),
+    use_container_width=True
+)
 
-# ===============================
-# MONTE CARLO
-# ===============================
+# =====================================================
+# MONTE CARLO SIMULATION
+# =====================================================
 st.subheader("🎲 Monte Carlo Simulation")
 
-n_sim = 3000
+sim = 3000
 results = []
 
-for _ in range(n_sim):
+for _ in range(sim):
     bal = 0
     for _ in range(months):
-        r = np.random.normal(expected_return, 0.04) / 12
-        bal = bal * (1 + r) + monthly_invest
+        rnd = np.random.normal(expected_return, 0.04) / 12
+        bal = bal * (1 + rnd) + monthly_invest
     results.append(bal)
 
 results = np.array(results)
@@ -318,51 +488,57 @@ st.pyplot(fig_mc)
 
 st.metric("Probability of Success", f"{prob*100:.1f}%")
 
-# ===============================
-# PASSIVE INCOME + ALLOCATION
-# ===============================
-st.subheader("💸 Pendapatan Pasif & Alokasi Aset")
+# =====================================================
+# PASSIVE INCOME & ALLOCATION
+# =====================================================
+st.subheader("💸 Pendapatan Pasif Pasca Financial Freedom")
 
-yield_obl = st.slider("Yield obligasi (%)", 3.0, 12.0, 6.0) / 100
+yield_obl = st.slider(
+    "Yield obligasi (%)",
+    min_value=3.0,
+    max_value=12.0,
+    value=6.0,
+    key="yield_obligasi"
+) / 100
+
 monthly_income = target_aset * yield_obl / 12
 
 p1, p2 = st.columns(2)
 card(p1, "Pendapatan Bulanan", f"Rp {monthly_income:,.0f}")
-card(p2, "Total Aset", f"Rp {target_aset:,.0f}")
+card(p2, "Target Aset", f"Rp {target_aset:,.0f}")
 
-fig_alloc, ax_alloc = plt.subplots()
-ax_alloc.pie([70, 20, 10],
-             labels=["Obligasi", "Dividen Saham", "Kas"],
-             autopct="%1.0f%%")
-ax_alloc.set_title("Ilustrasi Alokasi Aset Pasca-FF")
-st.pyplot(fig_alloc)
-
-# ===============================
+# =====================================================
 # EXPORT PDF
-# ===============================
+# =====================================================
 st.subheader("📄 Export Financial Report")
 
-if st.button("Download PDF Report"):
+if st.button("Download PDF Report", key="download_pdf"):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer)
     styles = getSampleStyleSheet()
+
     content = [
         Paragraph("Financial Freedom Report", styles["Title"]),
         Paragraph(f"Profil Investor: {profil}", styles["Normal"]),
         Paragraph(f"Target Usia: {usia_target}", styles["Normal"]),
         Paragraph(f"Target Aset: Rp {target_aset:,.0f}", styles["Normal"]),
         Paragraph(f"Investasi Bulanan: Rp {monthly_invest:,.0f}", styles["Normal"]),
-        Paragraph(f"Probability of Success: {prob*100:.1f}%", styles["Normal"])
+        Paragraph(f"Probability of Success: {prob*100:.1f}%", styles["Normal"]),
     ]
+
     doc.build(content)
+
     st.download_button(
-        "Klik untuk download",
+        "Klik untuk mengunduh",
         buffer.getvalue(),
-        "financial_report.pdf",
-        "application/pdf"
+        file_name="financial_report.pdf",
+        mime="application/pdf",
+        key="pdf_download_button"
     )
 
-# ===============================
+# =====================================================
 # DISCLAIMER
-# ===============================
-st.caption("Disclaimer: Aplikasi ini bersifat edukatif dan bukan nasihat investasi.")
+# =====================================================
+st.caption(
+    "Disclaimer: Aplikasi ini bersifat edukatif dan bukan merupakan nasihat investasi."
+)
